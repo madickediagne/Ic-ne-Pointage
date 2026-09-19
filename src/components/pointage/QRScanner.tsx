@@ -21,8 +21,8 @@ export default function QRScanner({ onScanSuccess }: QRScannerProps) {
       { facingMode: "environment" },
       {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
+        // On enlève qrbox et aspectRatio pour analyser TOUT l'écran
+        // Cela rend le scan beaucoup plus facile et indulgent sur les téléphones
       },
       (decodedText) => {
         // En cas de succès : on arrête la caméra

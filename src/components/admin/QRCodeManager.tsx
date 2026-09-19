@@ -8,7 +8,8 @@ export default function QRCodeDisplay({ qrString, siteName }: { qrString: string
 
   useEffect(() => {
     if (qrString) {
-      QRCode.toDataURL(qrString, { width: 300, margin: 2, color: { dark: '#1e3a8a', light: '#ffffff' } })
+      // Contraste maximal (Noir sur Blanc) pour garantir la lecture par les caméras
+      QRCode.toDataURL(qrString, { width: 400, margin: 4, color: { dark: '#000000', light: '#ffffff' } })
         .then(url => setQrSrc(url))
         .catch(err => console.error(err));
     }
