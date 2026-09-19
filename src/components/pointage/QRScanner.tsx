@@ -1,49 +1,62 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface QRScannerProps {
   onScanSuccess: (decodedText: string) => void;
 }
 
 export default function QRScanner({ onScanSuccess }: QRScannerProps) {
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialisation du scanner
-    scannerRef.current = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-      false
-    );
+    // On utilise le moteur de base au lieu de l'interface par défaut
+    const html5QrCode = new Html5Qrcode("qr-reader");
+    scannerRef.current = html5QrCode;
 
-    scannerRef.current.render(
-      (decodedText) => {
-        // Succès : on arrête le scanner et on renvoie le résultat
-        if (scannerRef.current) {
-          scannerRef.current.clear().catch(console.error);
-        }
-        onScanSuccess(decodedText);
+    // Démarrer directement avec la caméra arrière (environment)
+    html5QrCode.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
       },
-      (err) => {
-        // Erreurs mineures de scan (flou, etc.), on ignore silencieusement
+      (decodedText) => {
+        // En cas de succès : on arrête la caméra
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          onScanSuccess(decodedText);
+        }).catch(console.error);
+      },
+      (errorMessage) => {
+        // Erreurs mineures ignorées (flou, etc.)
       }
-    );
+    ).catch((err) => {
+      console.error("Erreur caméra:", err);
+      setError("Impossible d'ouvrir la caméra. Veuillez autoriser l'accès.");
+    });
 
-    // Nettoyage au démontage du composant
+    // Nettoyage (si on quitte la page)
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(console.error);
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
       }
     };
   }, [onScanSuccess]);
 
   return (
-    <div className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl shadow-sm border border-gray-200 bg-white p-2">
-      <div id="qr-reader" className="w-full" />
-      {error && <p className="text-red-500 text-sm text-center mt-2">{error}</p>}
+    <div className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl shadow-sm border border-gray-200 bg-black p-2">
+      <div id="qr-reader" className="w-full rounded-xl overflow-hidden min-h-[250px] bg-black flex items-center justify-center">
+        {!error && <div className="text-white text-sm animate-pulse">Ouverture de la caméra...</div>}
+      </div>
+      {error && (
+        <div className="bg-white p-3 mt-2 rounded-xl text-red-500 text-sm font-medium text-center">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
