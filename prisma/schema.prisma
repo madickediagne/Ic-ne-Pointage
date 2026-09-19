@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Utilisateurs & Structure ──────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  matricule      String    @unique
+  nom            String
+  prenom         String
+  telephone      String?
+  email          String?   @unique
+  passwordHash   String    @map("password_hash")
+  photo          String?
+  role           String    @default("EMPLOYE") // SUPER_ADMIN, ADMIN, RH, RESPONSABLE, EMPLOYE
+  status         String    @default("ACTIF")   // ACTIF, INACTIF
+  
+  departmentId   String?   @map("department_id")
+  department     Department? @relation(fields: [departmentId], references: [id])
+
+  devices        Device[]
+  attendances    Attendance[]
+  leaveRequests  LeaveRequest[]
+  auditLogs      AuditLog[]
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  status      String   @default("ACTIF")
+  
+  users       User[]
+  schedules   Schedule[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("departments")
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  latitude    Float
+  longitude   Float
+  radius      Int      @default(50) // Rayon de tolérance en mètres
+  qrCode      String?  @unique @map("qr_code") // Identifiant unique du QR actuel
+  qrSecret    String   @map("qr_secret") // Secret pour valider le QR Code
+  status      String   @default("ACTIF")
+  
+  attendances Attendance[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("sites")
+}
+
+// ─── Pointage & Horaires ──────────────────────────────────────────────────
+
+model Schedule {
+  id            String     @id @default(cuid())
+  departmentId  String     @map("department_id")
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  
+  startTime     String     @map("start_time") // Format "HH:mm" (ex: "08:00")
+  endTime       String     @map("end_time")   // Format "HH:mm" (ex: "17:00")
+  tolerance     Int        @default(15)       // Tolérance en minutes
+  workingDays   Int[]      @map("working_days") // [1,2,3,4,5] pour Lundi à Vendredi
+
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@map("schedules")
+}
+
+model Device {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  deviceIdentifier String   @unique @map("device_identifier") // Empreinte ou token de l'appareil
+  deviceName       String?  @map("device_name") // Ex: "iPhone de Madicke"
+  status           String   @default("AUTORISE") // AUTORISE, BLOQUE
+  lastSeen         DateTime @default(now()) @map("last_seen")
+
+  attendances      Attendance[]
+
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("devices")
+}
+
+model Attendance {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  siteId              String   @map("site_id")
+  site                Site     @relation(fields: [siteId], references: [id])
+
+  deviceId            String?  @map("device_id")
+  device              Device?  @relation(fields: [deviceId], references: [id])
+
+  date                DateTime @db.Date // Date du jour (sans l'heure) pour unicité
+  
+  checkIn             DateTime? @map("check_in")
+  checkOut            DateTime? @map("check_out")
+  
+  checkInLatitude     Float?   @map("check_in_latitude")
+  checkInLongitude    Float?   @map("check_in_longitude")
+  checkInAccuracy     Float?   @map("check_in_accuracy")
+  
+  checkOutLatitude    Float?   @map("check_out_latitude")
+  checkOutLongitude   Float?   @map("check_out_longitude")
+  checkOutAccuracy    Float?   @map("check_out_accuracy")
+
+  lateMinutes         Int      @default(0) @map("late_minutes")
+  status              String   @default("PRESENT") // PRESENT, RETARD, ABSENT...
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Un utilisateur ne peut avoir qu'un seul enregistrement de présence par jour
+  @@unique([userId, date])
+  @@map("attendance")
+}
+
+// ─── Congés & Logs ────────────────────────────────────────────────────────
+
+model LeaveRequest {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type        String   // CONGE, PERMISSION, MISSION
+  startDate   DateTime @db.Date @map("start_date")
+  endDate     DateTime @db.Date @map("end_date")
+  reason      String?
+  status      String   @default("EN_ATTENTE") // EN_ATTENTE, APPROUVE, REFUSE
+  
+  approvedBy  String?  @map("approved_by") // ID de l'admin qui a approuvé
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("leave_requests")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id") // Optionnel car l'action peut être pré-login
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      String   // LOGIN, CHECK_IN, CHECK_IN_REFUSED, etc.
+  ipAddress   String?  @map("ip_address")
+  deviceId    String?  @map("device_id")
+  metadata    String?  // JSON stringifié pour stocker des détails (distance GPS, raison du refus...)
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
