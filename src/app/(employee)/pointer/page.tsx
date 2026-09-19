@@ -42,14 +42,10 @@ export default function PointerPage() {
     getLocation(); // Lance la géolocalisation
   };
 
-  // 3. Quand le GPS est prêt, on passe au scanner (ou on valide direct pour le départ)
+  // 3. Quand le GPS est prêt, on passe TOUJOURS au scanner QR (arrivée ET départ)
   useEffect(() => {
     if (step === "GPS" && latitude && longitude) {
-      if (status === "NEED_CHECKIN") {
-        setStep("QR"); // Pour l'arrivée, on exige le QR
-      } else if (status === "NEED_CHECKOUT") {
-        submitPointage(null); // Pour le départ, le GPS suffit dans la V1
-      }
+      setStep("QR"); // QR obligatoire pour l'arrivée ET le départ
     } else if (step === "GPS" && gpsError) {
       setMessage({ type: "error", text: gpsError });
       setStep("RESULT");

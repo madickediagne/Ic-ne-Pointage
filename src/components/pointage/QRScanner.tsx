@@ -9,51 +9,62 @@ interface QRScannerProps {
 
 export default function QRScanner({ onScanSuccess }: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isStartedRef = useRef(false); // Protection contre le double montage (React StrictMode)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // On utilise le moteur de base au lieu de l'interface par défaut
+    // Si déjà démarré (double montage en StrictMode), on ne fait rien
+    if (isStartedRef.current) return;
+    isStartedRef.current = true;
+
     const html5QrCode = new Html5Qrcode("qr-reader");
     scannerRef.current = html5QrCode;
 
-    // Démarrer directement avec la caméra arrière (environment)
     html5QrCode.start(
       { facingMode: "environment" },
-      {
-        fps: 10,
-        // On enlève qrbox et aspectRatio pour analyser TOUT l'écran
-        // Cela rend le scan beaucoup plus facile et indulgent sur les téléphones
-      },
+      { fps: 10 },
       (decodedText) => {
-        // En cas de succès : on arrête la caméra
-        html5QrCode.stop().then(() => {
-          html5QrCode.clear();
-          onScanSuccess(decodedText);
-        }).catch(console.error);
+        // Succès : on arrête proprement la caméra avant de remonter le résultat
+        html5QrCode.stop()
+          .then(() => {
+            isStartedRef.current = false;
+            onScanSuccess(decodedText);
+          })
+          .catch(console.error);
       },
-      (errorMessage) => {
-        // Erreurs mineures ignorées (flou, etc.)
+      () => {
+        // Erreurs de scan mineures ignorées silencieusement
       }
     ).catch((err) => {
       console.error("Erreur caméra:", err);
-      setError("Impossible d'ouvrir la caméra. Veuillez autoriser l'accès.");
+      setError("Impossible d'ouvrir la caméra. Vérifiez les permissions.");
+      isStartedRef.current = false;
     });
 
-    // Nettoyage (si on quitte la page)
+    // Nettoyage propre si le composant se démonte
     return () => {
-      if (html5QrCode.isScanning) {
-        html5QrCode.stop().catch(console.error);
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop()
+          .then(() => { isStartedRef.current = false; })
+          .catch(console.error);
       }
     };
-  }, [onScanSuccess]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl shadow-sm border border-gray-200 bg-black p-2">
-      <div id="qr-reader" className="w-full rounded-xl overflow-hidden min-h-[250px] bg-black flex items-center justify-center">
-        {!error && <div className="text-white text-sm animate-pulse">Ouverture de la caméra...</div>}
+    <div className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-gray-200 bg-black">
+      <div
+        id="qr-reader"
+        className="w-full min-h-[300px] flex items-center justify-center"
+      >
+        {!error && (
+          <p className="text-white text-sm animate-pulse px-4 text-center">
+            📷 Ouverture de la caméra...
+          </p>
+        )}
       </div>
       {error && (
-        <div className="bg-white p-3 mt-2 rounded-xl text-red-500 text-sm font-medium text-center">
+        <div className="bg-white p-3 text-red-500 text-sm font-medium text-center">
           {error}
         </div>
       )}
