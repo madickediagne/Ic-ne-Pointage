@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Récupérer les horaires du département pour calculer le retard
+    // 4. Récupérer l'utilisateur, son poste et les horaires de son département
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { department: { include: { schedules: true } } }
@@ -58,18 +58,30 @@ export async function POST(req: Request) {
     let lateMinutes = 0;
     let status = "PRESENT";
 
-    // Calcul simple du retard si un horaire existe
-    const schedule = user?.department?.schedules[0];
-    if (schedule) {
+    // RÈGLE : Les Directeurs, Chefs de département et Administrateurs ne sont pas soumis au calcul de retard
+    const isExempt = 
+      user?.role === "SUPER_ADMIN" || 
+      user?.role === "ADMIN" || 
+      user?.role === "SUPERVISEUR" ||
+      user?.poste?.toUpperCase().includes("DIRECTEUR") ||
+      user?.poste?.toUpperCase().includes("CHEF") ||
+      user?.poste?.toUpperCase().includes("RESPONSABLE");
+
+    if (!isExempt) {
+      // Horaire du département ou horaire standard Icône Groupe (08:00 avec 15 min de tolérance)
+      const schedule = user?.department?.schedules[0];
+      const startTime = schedule?.startTime || "08:00";
+      const tolerance = schedule?.tolerance ?? 15;
+
       const now = new Date();
-      const [sh, sm] = schedule.startTime.split(':').map(Number);
+      const [sh, sm] = startTime.split(':').map(Number);
       
       const expectedTime = new Date();
       expectedTime.setHours(sh, sm, 0, 0);
       
-      const toleranceMs = schedule.tolerance * 60000;
+      const toleranceMs = tolerance * 60000;
       
-      // Si l'heure actuelle > heure prévue + tolérance
+      // Si l'heure actuelle dépasse l'heure prévue + la tolérance (ex: 08:15)
       if (now.getTime() > expectedTime.getTime() + toleranceMs) {
         lateMinutes = Math.floor((now.getTime() - expectedTime.getTime()) / 60000);
         status = "RETARD";
@@ -91,11 +103,13 @@ export async function POST(req: Request) {
       }
     });
 
-    await logAudit(userId, AUDIT_ACTIONS.CHECK_IN, "Pointage arrivée réussi", { distance, lateMinutes });
+    await logAudit(userId, AUDIT_ACTIONS.CHECK_IN, "Pointage arrivée réussi", { distance, lateMinutes, isExempt });
 
     return NextResponse.json({ 
       success: true, 
-      message: "Arrivée enregistrée avec succès !",
+      message: status === "RETARD" 
+        ? `Arrivée enregistrée avec ${lateMinutes} min de retard.` 
+        : "Arrivée enregistrée à l'heure avec succès !",
       attendance 
     });
 
