@@ -60,14 +60,62 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Vous avez déjà pointé votre départ." }, { status: 400 });
     }
 
-    // ANTI-FRAUDE : Interdire le départ moins d'1 heure après l'arrivée
+    // --- GESTION DU DÉPART ANTICIPÉ ---
     const now = new Date();
-    const checkInTime = new Date(attendance.checkIn);
-    const diffHours = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+    
+    // Récupérer l'utilisateur pour vérifier son rôle et horaire
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { department: { include: { schedules: true } } }
+    });
 
-    if (diffHours < 1) {
-      return NextResponse.json({ message: "Vous ne pouvez pas pointer votre départ si tôt. Si vous avez une urgence ou permission, utilisez le module de congés." }, { status: 403 });
+    const isExempt = 
+      user?.role === "SUPER_ADMIN" || 
+      user?.role === "ADMIN" || 
+      user?.role === "SUPERVISEUR" ||
+      user?.poste?.toUpperCase().includes("DIRECTEUR") ||
+      user?.poste?.toUpperCase().includes("CHEF") ||
+      user?.poste?.toUpperCase().includes("RESPONSABLE");
+
+    let finalStatus = attendance.status;
+
+    if (!isExempt) {
+      const schedule = user?.department?.schedules[0];
+      const endTimeStr = schedule?.endTime || "17:00";
+      const [eh, em] = endTimeStr.split(':').map(Number);
+      
+      const expectedEndTime = new Date();
+      expectedEndTime.setHours(eh, em, 0, 0);
+
+      // Si le départ se fait avant l'heure prévue (ex: avant 17:00)
+      if (now.getTime() < expectedEndTime.getTime()) {
+        const todayStart = new Date(today);
+        todayStart.setHours(0, 0, 0, 0);
+        
+        const todayEnd = new Date(today);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        // Vérifier si l'employé a une demande de congé/permission approuvée pour aujourd'hui
+        const permission = await prisma.leaveRequest.findFirst({
+          where: {
+            userId: userId,
+            status: "APPROUVE",
+            startDate: { lte: todayEnd },
+            endDate: { gte: todayStart }
+          }
+        });
+
+        if (!permission) {
+          return NextResponse.json({ 
+            message: `Vous ne pouvez pas pointer votre départ avant ${endTimeStr} sans une permission ou un congé approuvé par la Direction.` 
+          }, { status: 403 });
+        }
+        
+        // S'il a une permission, on met à jour son statut pour l'historique
+        finalStatus = permission.type === "MISSION" ? "MISSION" : "PERMISSION";
+      }
     }
+    // --- FIN GESTION DÉPART ANTICIPÉ ---
 
     // 2. Vérifier le GPS (il doit toujours être sur le site pour partir)
     const site = attendance.site;
@@ -92,12 +140,11 @@ export async function POST(req: Request) {
         checkOutLatitude: latitude,
         checkOutLongitude: longitude,
         checkOutAccuracy: accuracy,
+        status: finalStatus,
       }
     });
 
-    await prisma.auditLog.create({
-      data: { userId, action: AUDIT_ACTIONS.CHECK_OUT, metadata: JSON.stringify({ distance }) }
-    });
+    await logAudit(userId, AUDIT_ACTIONS.CHECK_OUT, "Pointage départ réussi", { distance, finalStatus });
 
     return NextResponse.json({ 
       success: true, 
@@ -109,4 +156,16 @@ export async function POST(req: Request) {
     console.error(error);
     return NextResponse.json({ message: "Erreur serveur" }, { status: 500 });
   }
+}
+
+async function logAudit(userId: string, action: string, metadataString: string, data: any) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action,
+        metadata: JSON.stringify({ note: metadataString, ...data })
+      }
+    });
+  } catch(e) {}
 }
