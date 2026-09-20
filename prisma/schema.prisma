@@ -18,6 +18,7 @@ model User {
   email          String?   @unique
   passwordHash   String    @map("password_hash")
   photo          String?
+  poste          String?
   role           String    @default("EMPLOYE") // SUPER_ADMIN, ADMIN, RH, RESPONSABLE, EMPLOYE
   status         String    @default("ACTIF")   // ACTIF, INACTIF
   

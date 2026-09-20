@@ -29,32 +29,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Champs obligatoires manquants." }, { status: 400 });
     }
 
-    // Vérifier si le matricule est déjà utilisé
-    const existing = await prisma.user.findUnique({ where: { matricule: matricule.toUpperCase() } });
-    if (existing) {
-      return NextResponse.json({ error: "Ce matricule est déjà utilisé." }, { status: 400 });
+    const cleanMatricule = matricule.trim().toUpperCase();
+
+    // 1. Vérifier si le matricule est déjà utilisé
+    const existingMatricule = await prisma.user.findUnique({ where: { matricule: cleanMatricule } });
+    if (existingMatricule) {
+      return NextResponse.json({ error: `Le matricule ${cleanMatricule} est déjà attribué.` }, { status: 400 });
+    }
+
+    // 2. Vérifier si l'email est déjà utilisé (si renseigné)
+    if (email && email.trim()) {
+      const existingEmail = await prisma.user.findUnique({ where: { email: email.trim() } });
+      if (existingEmail) {
+        return NextResponse.json({ error: `L'adresse email ${email} est déjà utilisée.` }, { status: 400 });
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
       data: {
-        matricule: matricule.toUpperCase(),
-        nom,
-        prenom,
-        email: email || null,
-        telephone: telephone || null,
-        poste: poste || null,
+        matricule: cleanMatricule,
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        email: email && email.trim() ? email.trim() : null,
+        telephone: telephone && telephone.trim() ? telephone.trim() : null,
+        poste: poste && poste.trim() ? poste.trim() : null,
         role: role || "EMPLOYE",
-        departmentId: departmentId || null,
+        departmentId: departmentId && departmentId.trim() ? departmentId.trim() : null,
         passwordHash,
         status: "ACTIF",
       },
     });
 
     return NextResponse.json({ success: true, user }, { status: 201 });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Erreur création employé:", error);
+    return NextResponse.json(
+      { error: error?.message || "Erreur lors de la création de l'employé." },
+      { status: 500 }
+    );
   }
 }
