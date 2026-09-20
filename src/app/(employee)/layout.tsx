@@ -40,24 +40,31 @@ export default async function EmployeeLayout({
       <nav className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-white/95 backdrop-blur-sm border-t border-gray-200 flex justify-around p-2.5 pb-safe z-20 shadow-md">
         <Link
           href="/dashboard"
-          className="flex flex-col items-center text-gray-600 hover:text-primary-600 transition px-4 py-1"
+          className="flex flex-col items-center text-gray-600 hover:text-primary-600 transition px-3 py-1"
         >
           <span className="text-xl">🏠</span>
-          <span className="text-[11px] mt-0.5 font-medium">Accueil</span>
+          <span className="text-[10px] mt-0.5 font-medium">Accueil</span>
         </Link>
         <Link
           href="/pointer"
-          className="flex flex-col items-center text-primary-600 px-4 py-1"
+          className="flex flex-col items-center text-primary-600 px-3 py-1"
         >
           <span className="text-xl">📷</span>
-          <span className="text-[11px] mt-0.5 font-semibold">Pointer</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Pointer</span>
         </Link>
         <Link
           href="/historique"
-          className="flex flex-col items-center text-gray-600 hover:text-primary-600 transition px-4 py-1"
+          className="flex flex-col items-center text-gray-600 hover:text-primary-600 transition px-3 py-1"
         >
           <span className="text-xl">🕒</span>
-          <span className="text-[11px] mt-0.5 font-medium">Historique</span>
+          <span className="text-[10px] mt-0.5 font-medium">Historique</span>
+        </Link>
+        <Link
+          href="/conges"
+          className="flex flex-col items-center text-gray-600 hover:text-primary-600 transition px-3 py-1"
+        >
+          <span className="text-xl">🏖️</span>
+          <span className="text-[10px] mt-0.5 font-medium">Congés</span>
         </Link>
       </nav>
     </div>
