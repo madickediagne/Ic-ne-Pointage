@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useDeviceId } from "@/hooks/useDeviceId";
 import QRScanner from "@/components/pointage/QRScanner";
 import { formatTime } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export default function PointerPage() {
   const [scannedQR, setScannedQR] = useState<string | null>(null);
 
   const { latitude, longitude, accuracy, error: gpsError, loading: gpsLoading, getLocation } = useGeolocation();
+  const deviceId = useDeviceId();
 
   // 1. Au chargement, on vérifie l'état du pointage du jour
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function PointerPage() {
           latitude,
           longitude,
           accuracy,
+          deviceId,
         }),
       });
       

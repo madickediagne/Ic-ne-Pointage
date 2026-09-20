@@ -11,11 +11,47 @@ export async function POST(req: Request) {
     const userId = session.user.id;
     const body = await req.json();
 
-    const { qrCode, latitude, longitude, accuracy } = body;
+    const { qrCode, latitude, longitude, accuracy, deviceId } = body;
 
     if (!qrCode || !latitude || !longitude) {
       return NextResponse.json({ message: "Données GPS ou QR manquantes" }, { status: 400 });
     }
+
+    if (!deviceId) {
+      return NextResponse.json({ message: "Identifiant de l'appareil introuvable. Veuillez utiliser l'application depuis votre téléphone personnel." }, { status: 400 });
+    }
+
+    // --- VÉRIFICATION DE L'APPAREIL (1 TÉLÉPHONE = 1 COMPTE) ---
+    // 1. Chercher si l'appareil est déjà lié à quelqu'un
+    const existingDevice = await prisma.device.findUnique({
+      where: { deviceIdentifier: deviceId },
+    });
+
+    if (existingDevice) {
+      if (existingDevice.userId !== userId) {
+        return NextResponse.json({ message: "Ce téléphone est déjà utilisé par un autre employé. Un seul compte par téléphone est autorisé." }, { status: 403 });
+      }
+      if (existingDevice.status === "BLOQUE") {
+        return NextResponse.json({ message: "Cet appareil a été bloqué par l'administrateur." }, { status: 403 });
+      }
+      // Mettre à jour lastSeen
+      await prisma.device.update({ where: { id: existingDevice.id }, data: { lastSeen: new Date() } });
+    } else {
+      // 2. Si l'appareil n'existe pas, on vérifie si l'utilisateur a DÉJÀ un autre appareil
+      const userDevices = await prisma.device.findMany({ where: { userId } });
+      if (userDevices.length > 0) {
+        return NextResponse.json({ message: "Vous avez déjà un téléphone lié à votre compte. Veuillez utiliser votre téléphone personnel d'origine." }, { status: 403 });
+      }
+      // 3. Sinon, on lie ce nouvel appareil à l'utilisateur
+      await prisma.device.create({
+        data: {
+          userId,
+          deviceIdentifier: deviceId,
+          deviceName: req.headers.get("user-agent")?.substring(0, 50) || "Téléphone inconnu",
+        }
+      });
+    }
+    // --- FIN VÉRIFICATION APPAREIL ---
 
     const today = new Date(todayISO());
 

@@ -11,12 +11,37 @@ export async function POST(req: Request) {
     const userId = session.user.id;
     const body = await req.json();
 
-    const { latitude, longitude, accuracy } = body;
+    const { latitude, longitude, accuracy, deviceId } = body;
 
-    // Le QR n'est pas strictement obligatoire pour le départ si on a le GPS (selon les règles de l'entreprise),
-    // mais on vérifie le GPS pour s'assurer qu'il part bien du site.
     if (!latitude || !longitude) {
       return NextResponse.json({ message: "Données GPS manquantes" }, { status: 400 });
+    }
+
+    if (!deviceId) {
+      return NextResponse.json({ message: "Identifiant de l'appareil introuvable." }, { status: 400 });
+    }
+
+    // --- VÉRIFICATION DE L'APPAREIL ---
+    const existingDevice = await prisma.device.findUnique({
+      where: { deviceIdentifier: deviceId },
+    });
+
+    if (existingDevice) {
+      if (existingDevice.userId !== userId) {
+        return NextResponse.json({ message: "Ce téléphone est déjà lié à un autre employé." }, { status: 403 });
+      }
+      if (existingDevice.status === "BLOQUE") {
+        return NextResponse.json({ message: "Cet appareil a été bloqué." }, { status: 403 });
+      }
+      await prisma.device.update({ where: { id: existingDevice.id }, data: { lastSeen: new Date() } });
+    } else {
+      const userDevices = await prisma.device.findMany({ where: { userId } });
+      if (userDevices.length > 0) {
+        return NextResponse.json({ message: "Vous avez déjà un autre téléphone enregistré." }, { status: 403 });
+      }
+      await prisma.device.create({
+        data: { userId, deviceIdentifier: deviceId, deviceName: req.headers.get("user-agent")?.substring(0, 50) || "Téléphone inconnu" }
+      });
     }
 
     const today = new Date(todayISO());
@@ -33,6 +58,15 @@ export async function POST(req: Request) {
 
     if (attendance.checkOut) {
       return NextResponse.json({ message: "Vous avez déjà pointé votre départ." }, { status: 400 });
+    }
+
+    // ANTI-FRAUDE : Interdire le départ moins d'1 heure après l'arrivée
+    const now = new Date();
+    const checkInTime = new Date(attendance.checkIn);
+    const diffHours = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+
+    if (diffHours < 1) {
+      return NextResponse.json({ message: "Vous ne pouvez pas pointer votre départ si tôt. Si vous avez une urgence ou permission, utilisez le module de congés." }, { status: 403 });
     }
 
     // 2. Vérifier le GPS (il doit toujours être sur le site pour partir)
