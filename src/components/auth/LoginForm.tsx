@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"; // On par défaut vers dashboard
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const [matricule, setMatricule] = useState("");
   const [password, setPassword] = useState("");
@@ -27,15 +27,14 @@ export default function LoginForm() {
       });
 
       if (res?.error) {
-        setError(res.error);
+        setError("Matricule ou mot de passe incorrect.");
         setIsLoading(false);
       } else {
-        // Redirection en cas de succès (le middleware se chargera de router les admins vers /admin/dashboard)
         router.push(callbackUrl);
         router.refresh();
       }
     } catch (err) {
-      setError("Une erreur inattendue s'est produite.");
+      setError("Une erreur inattendue s'est produite. Veuillez réessayer.");
       setIsLoading(false);
     }
   };
@@ -57,8 +56,8 @@ export default function LoginForm() {
           name="matricule"
           type="text"
           required
-          placeholder="Ex: ICN001"
-          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition uppercase"
+          placeholder="Ex: IMN01 ou ICN001"
+          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition uppercase font-mono"
           value={matricule}
           onChange={(e) => setMatricule(e.target.value)}
           disabled={isLoading}

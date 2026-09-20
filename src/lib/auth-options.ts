@@ -9,7 +9,7 @@ export const authOptions: NextAuthConfig = {
     CredentialsProvider({
       name: "Connexion",
       credentials: {
-        matricule: { label: "Matricule", type: "text", placeholder: "ICN001" },
+        matricule: { label: "Matricule", type: "text", placeholder: "Ex: IMN01" },
         password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
@@ -17,30 +17,31 @@ export const authOptions: NextAuthConfig = {
         const parsedCredentials = loginSchema.safeParse(credentials);
         
         if (!parsedCredentials.success) {
-          throw new Error("Informations de connexion invalides.");
+          return null;
         }
 
         const { matricule, password } = parsedCredentials.data;
+        const cleanMatricule = matricule.trim().toUpperCase();
 
         // Recherche de l'utilisateur dans la base de données
         const user = await prisma.user.findUnique({
-          where: { matricule: matricule.toUpperCase() },
+          where: { matricule: cleanMatricule },
         });
 
         if (!user) {
-          throw new Error("Matricule ou mot de passe incorrect.");
+          return null;
         }
 
         // Vérification si le compte est actif
         if (user.status !== "ACTIF") {
-          throw new Error("Votre compte a été désactivé. Veuillez contacter l'administration.");
+          return null;
         }
 
         // Vérification du mot de passe
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
         if (!isPasswordValid) {
-          throw new Error("Matricule ou mot de passe incorrect.");
+          return null;
         }
 
         // Tout est bon, on retourne l'utilisateur pour la session
@@ -57,7 +58,6 @@ export const authOptions: NextAuthConfig = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Lors de la première connexion, on injecte les données de l'utilisateur dans le token
       if (user) {
         token.id = user.id;
         token.matricule = user.matricule;
@@ -68,7 +68,6 @@ export const authOptions: NextAuthConfig = {
       return token;
     },
     async session({ session, token }) {
-      // On passe les données du token vers la session côté client
       if (token) {
         session.user.id = token.id as string;
         session.user.matricule = token.matricule as string;
@@ -84,7 +83,7 @@ export const authOptions: NextAuthConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 heures (correspond à une journée de travail typique)
+    maxAge: 8 * 60 * 60, // 8 heures
   },
   secret: process.env.AUTH_SECRET,
 };
