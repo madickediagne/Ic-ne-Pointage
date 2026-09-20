@@ -40,6 +40,12 @@ export default async function AdminLayout({
             <span>🕒</span> Pointages
           </Link>
           <Link
+            href="/admin/rapports"
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 font-medium text-sm transition"
+          >
+            <span>📈</span> Rapports
+          </Link>
+          <Link
             href="/admin/site"
             className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 font-medium text-sm transition"
           >
