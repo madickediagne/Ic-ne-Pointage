@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import LogoutButton from "@/components/auth/LogoutButton";
+import AdminMobileHeader from "@/components/admin/AdminMobileHeader";
 
 export default async function AdminLayout({
   children,
@@ -11,9 +12,12 @@ export default async function AdminLayout({
   const userName = session.user.name || "Admin";
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar Desktop */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex-col hidden md:flex">
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+      {/* ── Header mobile avec menu hamburger (visible uniquement sur mobile) ─── */}
+      <AdminMobileHeader userName={userName} />
+
+      {/* ── Sidebar Desktop (visible uniquement sur md+) ─── */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex-col hidden md:flex flex-shrink-0">
         <div className="p-6 border-b border-gray-100">
           <h1 className="font-bold text-primary-900 text-xl tracking-tight">
             Icône Pointage
@@ -75,20 +79,15 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* Contenu principal */}
+      {/* ── Header Desktop (visible uniquement sur md+) ─── */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-gray-200 h-16 flex items-center px-6 justify-between sticky top-0 z-10">
+        <header className="bg-white border-b border-gray-200 h-16 items-center px-6 justify-between sticky top-0 z-10 hidden md:flex">
           <h2 className="font-semibold text-gray-800 text-sm sm:text-base">
             Icône Groupe Thiès
           </h2>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 hidden sm:inline">
-              Connecté : <strong className="text-gray-700">{userName}</strong>
-            </span>
-            <div className="md:hidden">
-              <LogoutButton />
-            </div>
-          </div>
+          <span className="text-xs text-gray-500">
+            Connecté : <strong className="text-gray-700">{userName}</strong>
+          </span>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
