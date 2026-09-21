@@ -35,10 +35,6 @@ export async function POST(req: Request) {
       }
       await prisma.device.update({ where: { id: existingDevice.id }, data: { lastSeen: new Date() } });
     } else {
-      const userDevices = await prisma.device.findMany({ where: { userId } });
-      if (userDevices.length > 0) {
-        return NextResponse.json({ message: "Vous avez déjà un autre téléphone enregistré." }, { status: 403 });
-      }
       await prisma.device.create({
         data: { userId, deviceIdentifier: deviceId, deviceName: req.headers.get("user-agent")?.substring(0, 50) || "Téléphone inconnu" }
       });

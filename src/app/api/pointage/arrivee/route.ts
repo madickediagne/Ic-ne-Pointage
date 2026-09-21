@@ -37,12 +37,9 @@ export async function POST(req: Request) {
       // Mettre à jour lastSeen
       await prisma.device.update({ where: { id: existingDevice.id }, data: { lastSeen: new Date() } });
     } else {
-      // 2. Si l'appareil n'existe pas, on vérifie si l'utilisateur a DÉJÀ un autre appareil
-      const userDevices = await prisma.device.findMany({ where: { userId } });
-      if (userDevices.length > 0) {
-        return NextResponse.json({ message: "Vous avez déjà un téléphone lié à votre compte. Veuillez utiliser votre téléphone personnel d'origine." }, { status: 403 });
-      }
-      // 3. Sinon, on lie ce nouvel appareil à l'utilisateur
+      // 2. Si l'appareil n'existe pas, on lie ce nouvel appareil à l'utilisateur
+      // Note: On ne bloque plus si l'utilisateur a plusieurs appareils car le passage de Safari à la PWA génère un nouvel ID.
+      // La règle "1 téléphone ne peut pas avoir plusieurs comptes" reste active.
       await prisma.device.create({
         data: {
           userId,
