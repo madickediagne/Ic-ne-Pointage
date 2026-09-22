@@ -91,11 +91,12 @@ export async function POST(req: Request) {
         const todayEnd = new Date(today);
         todayEnd.setHours(23, 59, 59, 999);
 
-        // Vérifier si l'employé a une demande de congé/permission approuvée pour aujourd'hui
+        // Vérifier si l'employé a une demande de type PERMISSION_DEPART approuvée pour aujourd'hui
         const permission = await prisma.leaveRequest.findFirst({
           where: {
             userId: userId,
             status: "APPROUVE",
+            type: "PERMISSION_DEPART", // Uniquement ce type débloque le départ anticipé
             startDate: { lte: todayEnd },
             endDate: { gte: todayStart }
           }
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
 
         if (!permission) {
           return NextResponse.json({ 
-            message: `Vous ne pouvez pas pointer votre départ avant ${endTimeStr} sans une permission ou un congé approuvé par la Direction.` 
+            message: `Vous ne pouvez pas partir avant ${endTimeStr}. Si vous avez besoin de partir tôt, soumettez une "Permission de départ anticipé" dans le module Congés et attendez l'approbation de la Direction.` 
           }, { status: 403 });
         }
         

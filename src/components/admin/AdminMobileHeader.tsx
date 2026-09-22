@@ -87,6 +87,13 @@ export default function AdminMobileHeader({ userName }: { userName: string }) {
         {/* Pied du drawer */}
         <div className="p-4 border-t border-gray-100 space-y-2">
           <Link
+            href="/admin/profil"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-gray-500 hover:bg-gray-50 text-sm transition"
+          >
+            <span>⚙️</span> Mon Profil
+          </Link>
+          <Link
             href="/dashboard"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-gray-500 hover:bg-gray-50 text-sm transition"

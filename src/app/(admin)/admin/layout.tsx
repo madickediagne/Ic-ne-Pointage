@@ -70,6 +70,12 @@ export default async function AdminLayout({
         </nav>
         <div className="p-4 border-t border-gray-100 space-y-2">
           <Link
+            href="/admin/profil"
+            className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1.5 py-1"
+          >
+            <span>⚙️</span> Mon Profil
+          </Link>
+          <Link
             href="/dashboard"
             className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1.5 py-1"
           >

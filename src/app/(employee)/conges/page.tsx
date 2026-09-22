@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 interface LeaveRequest {
   id: string;
@@ -13,6 +12,52 @@ interface LeaveRequest {
   createdAt: string;
 }
 
+// Types bien séparés
+const LEAVE_TYPES = [
+  {
+    value: "CONGE",
+    label: "Congé annuel",
+    icon: "🏖️",
+    description: "Jours de congé payés",
+    category: "absence",
+  },
+  {
+    value: "ABSENCE",
+    label: "Absence justifiée",
+    icon: "📋",
+    description: "Absence pour raison personnelle ou familiale",
+    category: "absence",
+  },
+  {
+    value: "MALADIE",
+    label: "Arrêt maladie",
+    icon: "🏥",
+    description: "Absence pour raison médicale",
+    category: "absence",
+  },
+  {
+    value: "MISSION",
+    label: "Mission professionnelle",
+    icon: "✈️",
+    description: "Déplacement ou travail en dehors du site",
+    category: "absence",
+  },
+  {
+    value: "PERMISSION_ABSENCE",
+    label: "Permission d'absence (journée)",
+    icon: "📅",
+    description: "Autorisation pour s'absenter une journée ou plusieurs jours",
+    category: "permission",
+  },
+  {
+    value: "PERMISSION_DEPART",
+    label: "Permission de départ anticipé",
+    icon: "🚪",
+    description: "Je suis venu au travail mais j'ai besoin de partir avant l'heure normale",
+    category: "permission",
+  },
+];
+
 const statusBadge: Record<string, { label: string; color: string }> = {
   EN_ATTENTE: { label: "En attente", color: "bg-orange-100 text-orange-700" },
   APPROUVE: { label: "Approuvé", color: "bg-green-100 text-green-700" },
@@ -20,7 +65,6 @@ const statusBadge: Record<string, { label: string; color: string }> = {
 };
 
 export default function CongesEmployePage() {
-  const router = useRouter();
   const [demandes, setDemandes] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -33,6 +77,12 @@ export default function CongesEmployePage() {
     endDate: "",
     reason: "",
   });
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const selectedType = LEAVE_TYPES.find((t) => t.value === formData.type);
+  // Pour "PERMISSION_DEPART", la date de fin = date de début automatiquement
+  const isDepartAnticipe = formData.type === "PERMISSION_DEPART";
 
   const loadDemandes = () => {
     setLoading(true);
@@ -54,11 +104,16 @@ export default function CongesEmployePage() {
     setSaving(true);
     setError(null);
 
+    const payload = {
+      ...formData,
+      endDate: isDepartAnticipe ? formData.startDate : formData.endDate,
+    };
+
     try {
       const res = await fetch("/api/employe/conges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -74,20 +129,22 @@ export default function CongesEmployePage() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("fr-FR", {
+      day: "2-digit", month: "2-digit", year: "numeric",
     });
-  };
+
+  const getTypeInfo = (typeValue: string) =>
+    LEAVE_TYPES.find((t) => t.value === typeValue) || {
+      label: typeValue, icon: "📄", category: "absence",
+    };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mes Absences</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Demandes de congés et permissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">Mes Absences & Permissions</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Congés, absences et demandes de départ anticipé</p>
         </div>
         {!showForm && (
           <button
@@ -99,11 +156,12 @@ export default function CongesEmployePage() {
         )}
       </div>
 
+      {/* Formulaire */}
       {showForm && (
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-top-4">
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-gray-800">Nouvelle demande</h2>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-sm font-medium">
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-sm">
               Fermer
             </button>
           </div>
@@ -111,66 +169,128 @@ export default function CongesEmployePage() {
           {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-xl">{error}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Sélection du type (visuellement divisé en 2 catégories) */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Type</label>
-              <select
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              >
-                <option value="CONGE">Congé annuel</option>
-                <option value="PERMISSION">Permission / Absence</option>
-                <option value="MISSION">Mission professionnelle</option>
-                <option value="MALADIE">Maladie</option>
-              </select>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Absences & Congés</p>
+              <div className="grid grid-cols-1 gap-2 mb-3">
+                {LEAVE_TYPES.filter((t) => t.category === "absence").map((t) => (
+                  <label
+                    key={t.value}
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                      formData.type === t.value
+                        ? "border-primary-400 bg-primary-50"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="type"
+                      value={t.value}
+                      checked={formData.type === t.value}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      className="mt-0.5 accent-primary-600"
+                    />
+                    <div>
+                      <span className="font-semibold text-sm text-gray-800">{t.icon} {t.label}</span>
+                      <p className="text-xs text-gray-500">{t.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="border-t border-dashed border-gray-200 pt-3">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Permissions</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {LEAVE_TYPES.filter((t) => t.category === "permission").map((t) => (
+                    <label
+                      key={t.value}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                        formData.type === t.value
+                          ? "border-primary-400 bg-primary-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="type"
+                        value={t.value}
+                        checked={formData.type === t.value}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        className="mt-0.5 accent-primary-600"
+                      />
+                      <div>
+                        <span className="font-semibold text-sm text-gray-800">{t.icon} {t.label}</span>
+                        <p className="text-xs text-gray-500">{t.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Date de début</label>
-                <div className="relative">
+            {/* Dates */}
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+              {isDepartAnticipe ? (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    📅 Date concernée
+                  </label>
                   <input
                     type="date"
                     required
-                    min={new Date().toISOString().split("T")[0]}
-                    className="w-full pl-10 pr-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white font-medium text-gray-700 shadow-sm"
+                    min={today}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white font-medium"
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   />
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">📅</span>
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    ⚠️ Cette permission concerne uniquement ce jour. La date de fin est automatiquement la même.
+                  </p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Date de fin</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    required
-                    min={formData.startDate || new Date().toISOString().split("T")[0]}
-                    className="w-full pl-10 pr-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white font-medium text-gray-700 shadow-sm"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  />
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">📅</span>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">📅 Du</label>
+                    <input
+                      type="date"
+                      required
+                      min={today}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white font-medium"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">📅 Au</label>
+                    <input
+                      type="date"
+                      required
+                      min={formData.startDate || today}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white font-medium"
+                      value={formData.endDate}
+                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
+            {/* Motif */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motif (Optionnel)</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Motif (optionnel)</label>
               <textarea
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
                 rows={3}
-                placeholder="Précisez la raison..."
+                placeholder="Précisez la raison de votre demande..."
                 value={formData.reason}
                 onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              ></textarea>
+              />
             </div>
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition shadow-sm disabled:opacity-50"
+              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold transition shadow-sm disabled:opacity-50"
             >
               {saving ? "Envoi en cours..." : "Soumettre la demande"}
             </button>
@@ -181,33 +301,38 @@ export default function CongesEmployePage() {
       {/* Liste des demandes */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
       ) : demandes.length === 0 ? (
         <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 shadow-sm text-gray-400">
-          <span className="text-4xl">🏖️</span>
+          <span className="text-4xl">📋</span>
           <p className="mt-2 font-medium">Aucune demande pour le moment.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {demandes.map((item) => {
             const badge = statusBadge[item.status] || { label: item.status, color: "bg-gray-100 text-gray-700" };
+            const typeInfo = getTypeInfo(item.type);
             return (
               <div key={item.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-800 capitalize">{item.type.toLowerCase()}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${badge.color}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-gray-800">
+                      {typeInfo.icon} {typeInfo.label}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${badge.color}`}>
                       {badge.label}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-400 font-medium">
-                    {formatDate(item.createdAt)}
-                  </span>
+                  <span className="text-xs text-gray-400 font-medium">{formatDate(item.createdAt)}</span>
                 </div>
-                
+
                 <div className="text-sm text-gray-600 font-medium mb-2">
-                  Du <span className="text-gray-900">{formatDate(item.startDate)}</span> au <span className="text-gray-900">{formatDate(item.endDate)}</span>
+                  {item.startDate === item.endDate ? (
+                    <>Le <span className="text-gray-900">{formatDate(item.startDate)}</span></>
+                  ) : (
+                    <>Du <span className="text-gray-900">{formatDate(item.startDate)}</span> au <span className="text-gray-900">{formatDate(item.endDate)}</span></>
+                  )}
                 </div>
 
                 {item.reason && (
